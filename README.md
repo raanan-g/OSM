@@ -1,5 +1,7 @@
 # OSM
-Tools for working with OpenStreetMap
+Tools for working locally with OpenStreetMap (OSM) data
+
+You can download OSM data by geographic from [Geofabrik](geofabrik.de) or using [Overpass Turbo API](https://overpass-turbo.eu/)
 
 Python and batch (command line) scripts in this repository were written by Raanan Gurewitsch
 
