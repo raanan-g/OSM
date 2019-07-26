@@ -5,7 +5,8 @@ import shapely
 from shapely.geometry import *
 from osmnx import footprints as fp
 import pandas as pd
-#from tqdm.autonotebook import tqdm
+import matplotlib.mlab as mlab
+import matplotlib.pyplot as plt
 
 buildings = ['us-midwest-building.geojson',
              'us-northeast-building.geojson',
@@ -24,8 +25,7 @@ landuse = ['us-midwest-landuse.geojson',
            'us-pacific-landuse.geojson',
            'us-south-landuse.geojson',
            'us-west-landuse.geojson']
-           
-# DataFrame stores all file paths by region and OSM key
+
 USA = pd.DataFrame({'building':buildings,'highway':highways,'landuse':landuse})
 
 def gdf_from_json(path):
@@ -54,7 +54,7 @@ def osm_from_points(addresses, dist, key, tags, area=False):
     tags : list, dict
         specific tags (key=tag) to target from OSM data. 
         Find more in the OSM Map Features wiki: https://wiki.openstreetmap.org/wiki/Map_features        
-    keys : String
+    key : String
         indicates which types of tag to target (i.e, 'landuse', 'highway', 'amenity', etc.)
     area : bool
         indicates whether to return area of building objects
@@ -66,7 +66,7 @@ def osm_from_points(addresses, dist, key, tags, area=False):
     """
     addresses = get_us_region(addresses)
     
-    ret_df = pd.DataFrame({'ID':[],'Lat_Lon':[]})
+    ret_df = pd.DataFrame({'ID':[],'Address':[],'Lat_Lon':[]})
     for tag in tags:
         ret_df[tag] = []
         if area == True:
@@ -76,11 +76,16 @@ def osm_from_points(addresses, dist, key, tags, area=False):
     # 1. Filter DataFrame by region
     for i in range(0,5): 
         _addresses = addresses[addresses.Reg_Code == i]
-        print("Grabbing data in region {} of 5...".format(i+1))
-        # 2. Load building data for the region
-        path = USA[key][i] 
-        gdf = gdf_from_json(path)
+        print("Grabbing data in region {} of 5".format(i+1))
+        pbar = '--------------------------------------------------'
+        prog = '| {0:.0%}'.format(0)
         
+        # 2. Load building data for the region
+        if len(_addresses) > 0:
+            path = USA[key][i] 
+            gdf = gdf_from_json(path)
+            print(pbar+prog,end='\r')
+            
         progress = 0
         for k in _addresses.index:
             progress+=1
@@ -88,20 +93,30 @@ def osm_from_points(addresses, dist, key, tags, area=False):
             # Create new vector to append at end of iteration 
             coords = _addresses['Lat_Lon'][k]
             ID = _addresses['ID'][k]
-            df = pd.DataFrame({'ID':[ID],'Lat_Lon':[coords]})  
+            Add = _addresses['Address'][k]
+            df = pd.DataFrame({'ID':[ID],'Address':[Add],'Lat_Lon':[coords]})  
             
             # 3. Create bounding box as GeoDataFrame
-            bb = fp.bbox_from_point(coords,dist)
-            bb = box(bb[3],bb[1],bb[2],bb[0])
-            bb = Polygon(bb)
-            bbox = gpd.GeoSeries([bb])
-            bbox = gpd.GeoDataFrame({'geometry':bbox})
+            b = fp.bbox_from_point(coords,dist)
 
-            # 4. Overlay bounding box onto gdf
-            gdf = gdf.reset_index(drop=True)
-            bbox = bbox.reset_index(drop=True)
-            osm_in_bbox = gpd.overlay(bbox, gdf, how='intersection')
-
+            # 4. Filter gdf by bounding box
+            if key=='highway':
+                # To get intersecting highways, we cannot use standard cx filtering
+                bb = box(b[3],b[1],b[2],b[0])
+                bb = Polygon(bb)
+                bbox = gpd.GeoSeries([bb])
+                bbox = gpd.GeoDataFrame({'geometry':bbox})
+                # Filter gdf for all data intersecting Polygon bbox
+                osm_in_bbox = gpd.sjoin(bbox, gdf, how = 'left', op = 'intersects')
+            else:
+                osm_in_bbox = gdf.cx[b[3]:b[2],b[1]:b[0]]
+            
+            #else:
+            #    osm_in_bbox = gpd.overlay(bbox, gdf, how='intersection')
+            
+            #fig, ax = plt.subplots()
+            #osm_in_bbox.plot(ax=ax,column=key,legend=True)
+            #plt.show()
             # 5. Get value counts and total area
 
             for tag in tags:
@@ -113,7 +128,13 @@ def osm_from_points(addresses, dist, key, tags, area=False):
 
             # 6. Store as new columns in DataFrame
             ret_df = ret_df.append(df)
-            print("    Progress: {0:.0%}".format(progress/len(_addresses)))
+            lft = round(progress*10/len(_addresses))
+            stars = '*' * lft * 5
+            pbar = stars + pbar[(lft*5):]
+            if progress != 0 and progress==len(_addresses):
+                print(pbar+"| {0:.0%}".format(progress/len(_addresses)))
+            else:
+                print(pbar+"| {0:.0%}".format(progress/len(_addresses)),end='\r')
     return ret_df
 
 def get_us_region(addresses):
