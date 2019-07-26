@@ -5,7 +5,7 @@ Python and batch (command line) scripts in this repository were written by Raana
 
 ## Dependencies:
 
-The file 'osm_batch.bat' requires [osmconvert](https://wiki.openstreetmap.org/wiki/Osmconvert#Download) to converts .PBF files to .OSM and [osmfilter](https://wiki.openstreetmap.org/wiki/Osmfilter#Download) to filter out specific tags or areas from larger files.
+The file 'osm_batch.bat' requires [osmconvert](https://wiki.openstreetmap.org/wiki/Osmconvert#Download) to convert .PBF files to .OSM and [osmfilter](https://wiki.openstreetmap.org/wiki/Osmfilter#Download) to filter out specific tags or areas from larger files.
 
 Python libraries for working with OSM and spatial data:
 
