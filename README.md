@@ -20,3 +20,9 @@ geojson
 [osmnx](https://osmnx.readthedocs.io/en/stable/)
 
 [ogr](https://gdal.org/python/)
+
+## Pipeline:
+
+![Part 1:](osmpl1.png)
+
+![Part 1:](osmpl2.png)
