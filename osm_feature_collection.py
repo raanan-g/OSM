@@ -1,30 +1,52 @@
+# -*- coding: utf-8 -*-
+import pandas as pd
 import geojson
+import joblib
 import json
 import geopandas as gpd
 import shapely
 from shapely.geometry import *
 from osmnx import footprints as fp
-import pandas as pd
-import matplotlib.mlab as mlab
-import matplotlib.pyplot as plt
 
-buildings = ['us-midwest-building.geojson',
-             'us-northeast-building.geojson',
-             'us-pacific-building.geojson',
-             'us-south-building.geojson',
-             'us-west-building.geojson']
+#import matplotlib.mlab as mlab
+#import matplotlib.pyplot as plt
+#from tqdm.autonotebook import tqdm
 
-highways = ['us-midwest-highway.geojson',
-             'us-northeast-highway.geojson',
-             'us-pacific-highway.geojson',
-             'us-south-highway.geojson',
-             'us-west-highway.geojson']
+buildings = ['geojson/us-midwest-building.geojson',
+             'geojson/us-northeast-building.geojson',
+             'geojson/us-pacific-building.geojson',
+             'geojson/us-south-building1.geojson',
+             'geojson/us-south-building2.geojson',
+             'geojson/us-south-building3.geojson',
+             'geojson/us-south-building4.geojson',
+             'geojson/us-west-building1.geojson',
+             'geojson/us-west-building2.geojson',
+             'geojson/us-west-building3.geojson',
+             'geojson/us-west-building4.geojson']
 
-landuse = ['us-midwest-landuse.geojson',
-           'us-northeast-landuse.geojson',  
-           'us-pacific-landuse.geojson',
-           'us-south-landuse.geojson',
-           'us-west-landuse.geojson']
+highways = ['geojson/us-midwest-highway.geojson',
+             'geojson/us-northeast-highway.geojson',
+             'geojson/us-pacific-highway.geojson',
+             'geojson/us-south-highway.geojson',
+             'geojson/us-west-highway.geojson',
+             '',
+             '',
+             '',
+             '',
+             '',
+             '']
+
+landuse = ['geojson/us-midwest-landuse.geojson',
+           'geojson/us-northeast-landuse.geojson',  
+           'geojson/us-pacific-landuse.geojson',
+           'geojson/us-south-landuse.geojson',
+           'geojson/us-west-landuse.geojson',
+             '',
+             '',
+             '',
+             '',
+             '',
+             '']
 
 USA = pd.DataFrame({'building':buildings,'highway':highways,'landuse':landuse})
 
@@ -39,7 +61,86 @@ def gdf_from_json(path):
     
     return gdf
 
-def osm_from_points(addresses, dist, key, tags, area=False):
+def osm_for_region(i, ret_df, key, tags, dist, area):
+    _addresses = addresses[addresses.Reg_Code == i]
+        
+    print("Grabbing data in region {} of 5".format(i+1))
+    pbar = '--------------------------------------------------'
+    prog = '| {0:.0%}'.format(0)
+
+    # 2. Load building data for the region
+    if len(_addresses) > 0:
+
+        # merge all building data from the South/West
+        if key == 'building':
+            if i == 3: 
+                path = USA[key][i] 
+                gdf = gdf_from_json(path)
+                gdf1 = gdf_from_json(USA[key][4])
+                gdf2 = gdf_from_json(USA[key][5])
+                gdf3 = gdf_from_json(USA[key][6])
+                gdf = gdf.append([gdf1,gdf2,gdf3], ignore_index=True)
+            elif i == 4:
+                path = USA[key][7] 
+                gdf = gdf_from_json(path)
+                gdf1 = gdf_from_json(USA[key][8])
+                gdf2 = gdf_from_json(USA[key][9])
+                gdf3 = gdf_from_json(USA[key][10])
+                gdf = gdf.append([gdf1,gdf2,gdf3], ignore_index=True)
+            else:
+                path = USA[key][i] 
+                gdf = gdf_from_json(path)
+        else:
+            path = USA[key][i] 
+            gdf = gdf_from_json(path)
+
+        print(pbar+prog,end='\r')
+    else:
+        print("No addresses in region {}".format(i+1))
+
+    progress = 0
+    for k in _addresses.index:
+        progress+=1
+
+        # Create new vector to append at end of iteration 
+        coords = _addresses['Lat_Lon'][k]
+        ID = _addresses['ID'][k]
+        Add = _addresses['Address'][k]
+        Shi = _addresses['Shipping'][k]
+        df = pd.DataFrame({'ID':[ID],'Address':[Add],'Lat_Lon':[coords],'Shipping':[Shi]})  
+
+        # 3. Create bounding box as GeoDataFrame
+        b = fp.bbox_from_point(coords,dist)
+
+        # 4. Filter gdf by bounding box
+        if key=='highway':
+            # To get intersecting highways, we cannot use standard cx filtering
+            bb = box(b[3],b[1],b[2],b[0])
+            bb = Polygon(bb)
+            bbox = gpd.GeoSeries([bb])
+            bbox = gpd.GeoDataFrame({'geometry':bbox})
+            # Filter gdf for all data intersecting Polygon bbox
+            osm_in_bbox = gpd.sjoin(bbox, gdf, how = 'left', op = 'intersects')
+        else:
+            osm_in_bbox = gdf.cx[b[3]:b[2],b[1]:b[0]]
+
+        for tag in tags:
+            x = osm_in_bbox[osm_in_bbox[key]==tag]
+            y = tag+'_'+key[0].upper()
+            df[y] = [len(x)]
+            if area == True:
+                t = y+"_area"
+                df[t] = [sum(x['geometry'].area)]
+
+        # 6. Store as new columns in DataFrame
+        ret_df = ret_df.append(df)
+        
+    return ret_df
+
+
+addresses = None
+
+def osm_from_points(adds, dist, key, tags, area=False):
     """
     Create a dataframe of key=value pair statistics within a bounding box 
     around a set of coordinates.
@@ -64,77 +165,24 @@ def osm_from_points(addresses, dist, key, tags, area=False):
     ret_df : DataFrame
         contains original dataframe (reordered by region) with columns for tag statistics
     """
-    addresses = get_us_region(addresses)
+    global addresses
+    addresses = get_us_region(adds)
     
-    ret_df = pd.DataFrame({'ID':[],'Address':[],'Lat_Lon':[]})
+    ret_df = pd.DataFrame({'ID':[],'Address':[],'Lat_Lon':[],'Shipping':[]})
     for tag in tags:
-        ret_df[tag] = []
+        tag_ = tag+'_'+key[0].upper()
+        ret_df[tag_] = []
         if area == True:
-            t = tag+"_area"
+            t = tag_+"_area"
             ret_df[t] = []
     
     # 1. Filter DataFrame by region
-    for i in range(0,5): 
-        _addresses = addresses[addresses.Reg_Code == i]
-        print("Grabbing data in region {} of 5".format(i+1))
-        pbar = '--------------------------------------------------'
-        prog = '| {0:.0%}'.format(0)
+    p = joblib.Parallel(n_jobs=5, backend='multiprocessing') 
+    de = [joblib.delayed(osm_for_region)(i,ret_df,key,tags,dist,area) for i in range(0,5)]
+    
+    ret_df = pd.concat(p(de))
+
         
-        # 2. Load building data for the region
-        if len(_addresses) > 0:
-            path = USA[key][i] 
-            gdf = gdf_from_json(path)
-            print(pbar+prog,end='\r')
-            
-        progress = 0
-        for k in _addresses.index:
-            progress+=1
-            
-            # Create new vector to append at end of iteration 
-            coords = _addresses['Lat_Lon'][k]
-            ID = _addresses['ID'][k]
-            Add = _addresses['Address'][k]
-            df = pd.DataFrame({'ID':[ID],'Address':[Add],'Lat_Lon':[coords]})  
-            
-            # 3. Create bounding box as GeoDataFrame
-            b = fp.bbox_from_point(coords,dist)
-
-            # 4. Filter gdf by bounding box
-            if key=='highway':
-                # To get intersecting highways, we cannot use standard cx filtering
-                bb = box(b[3],b[1],b[2],b[0])
-                bb = Polygon(bb)
-                bbox = gpd.GeoSeries([bb])
-                bbox = gpd.GeoDataFrame({'geometry':bbox})
-                # Filter gdf for all data intersecting Polygon bbox
-                osm_in_bbox = gpd.sjoin(bbox, gdf, how = 'left', op = 'intersects')
-            else:
-                osm_in_bbox = gdf.cx[b[3]:b[2],b[1]:b[0]]
-            
-            #else:
-            #    osm_in_bbox = gpd.overlay(bbox, gdf, how='intersection')
-            
-            #fig, ax = plt.subplots()
-            #osm_in_bbox.plot(ax=ax,column=key,legend=True)
-            #plt.show()
-            # 5. Get value counts and total area
-
-            for tag in tags:
-                x = osm_in_bbox[osm_in_bbox[key]==tag]
-                df[tag] = [len(x)]
-                if area == True:
-                    t = tag+"_area"
-                    df[t] = [sum(x['geometry'].area)]
-
-            # 6. Store as new columns in DataFrame
-            ret_df = ret_df.append(df)
-            lft = round(progress*10/len(_addresses))
-            stars = '*' * lft * 5
-            pbar = stars + pbar[(lft*5):]
-            if progress != 0 and progress==len(_addresses):
-                print(pbar+"| {0:.0%}".format(progress/len(_addresses)))
-            else:
-                print(pbar+"| {0:.0%}".format(progress/len(_addresses)),end='\r')
     return ret_df
 
 def get_us_region(addresses):
@@ -187,3 +235,6 @@ def get_us_region(addresses):
     addresses['Reg_Code'] = reg
         
     return addresses
+
+
+
