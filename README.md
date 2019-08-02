@@ -22,10 +22,10 @@ geojson
 [ogr](https://gdal.org/python/)
 
 ## Pipeline:
-####Step 1 -> geofabrik.py -> download regional OpenStreetMap data for US
-####Step 2 -> osm_batch.bat -> convert files and extract relevant data by tag
-####Step 3 -> osmtojson.py -> convert files to json format for analysis
-####Step 4 -> osm_feature_collection.py -> collect address-level OSM statistics
+###Step 1 -> geofabrik.py -> download regional OpenStreetMap data for US
+###Step 2 -> osm_batch.bat -> convert files and extract relevant data by tag
+###Step 3 -> osmtojson.py -> convert files to json format for analysis
+###Step 4 -> osm_feature_collection.py -> collect address-level OSM statistics
 
 ![Part 1:](osmpl1.png)
 
