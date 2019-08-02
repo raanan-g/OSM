@@ -7,7 +7,7 @@ import urllib.request
 regs = 'us-midwest','us-northeast','us-pacific','us-south','us-west'
 url = "http://download.geofabrik.de/north-america/"
 
-for item in reg:
+for reg in regs:
 	link = url+reg+'-latest.osm.pbf'
 	path = reg+'.pbf'
 	urllib.request.urlretrieve(link, path)
