@@ -26,6 +26,8 @@ Step 3 -> osmtojson.py -> convert files to json format for analysis
 
 Step 4 -> osm_feature_collection.py -> collect address-level OSM statistics
 
+Step 5 -> osm_machine_learning.py -> build and analyze machine learning models using OSM data
+
 ![Part 1:](osmpl1.png)
 
 ![Part 1:](osmpl2.png)
