@@ -219,18 +219,28 @@ def diagnose(model, X, y):
         prob0.append(p[0])
         prob1.append(p[1])
         
-    diagnostic = pd.DataFrame({'Shipping':y,'Prediction':preds,'p(0)':prob0,'p(1)':prob1})
+    diagnostic = pd.DataFrame({y.name:y,'Prediction':preds,'p(0)':prob0,'p(1)':prob1})
 
     # Generate correct/incorrect column
     cr = []
     for i in diagnostic.index:
-        if diagnostic['Shipping'][i] == diagnostic['Prediction'][i]:
+        if diagnostic[y.name][i] == diagnostic['Prediction'][i]:
             cr.append("Correct")
         else:
             cr.append("Incorrect")
     diagnostic['Classification Result'] = cr
     
+    # Compare classification results by probability of negative classification
+    import matplotlib.pyplot as plt
+    d = diagnostic[diagnostic[y.name]==diagnostic['Prediction']]
+    d_i = diagnostic[diagnostic[y.name]!=diagnostic['Prediction']]
+    d['p(0)'].plot.hist(bins=100)
+    d_i['p(0)'].plot.hist(bins=100, title='Correct vs. Incorrect Classification by p(0)', color='red')
+    plt.xlabel('Predicted p(0)')
+    plt.figure(figsize=(18,12))
+    plt.show()
     
+
     return diagnostic
     
 
